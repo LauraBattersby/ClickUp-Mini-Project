@@ -1,0 +1,54 @@
+name: Real-Time Industry News Alerts
+
+on:
+  schedule:
+    - cron: '*/1 * * * *'  # Runs every minute
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  fetch-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Fetch Latest Industry News from Google News
+        run: |
+          echo "Fetching latest news for Project Management, Healthcare, and FinTech..."
+          
+          # Get news from Google News RSS
+          curl -s "https://news.google.com/rss/search?q=project+management+OR+workflow+automation+OR+team+collaboration+OR+remote+work+OR+productivity+software&hl=en-US&gl=US&ceid=US:en" > pm_news.xml
+          curl -s "https://news.google.com/rss/search?q=healthcare+technology+OR+digital+health+OR+telemedicine+OR+AI+in+healthcare&hl=en-US&gl=US&ceid=US:en" > healthcare_news.xml
+          curl -s "https://news.google.com/rss/search?q=fintech+OR+digital+banking+OR+crypto+payments+OR+AI+in+finance&hl=en-US&gl=US&ceid=US:en" > fintech_news.xml
+
+      - name: Convert XML to Readable Format
+        run: |
+          echo "Extracting headlines..."
+          apt-get update && apt-get install -y xmlstarlet
+          
+          echo "**Project Management News**" > news.txt
+          xmlstarlet sel -t -m "//item" -v "concat(title, ' - ', link)" -n pm_news.xml >> news.txt
+          
+          echo "" >> news.txt
+          echo "**Healthcare News**" >> news.txt
+          xmlstarlet sel -t -m "//item" -v "concat(title, ' - ', link)" -n healthcare_news.xml >> news.txt
+          
+          echo "" >> news.txt
+          echo "**FinTech News**" >> news.txt
+          xmlstarlet sel -t -m "//item" -v "concat(title, ' - ', link)" -n fintech_news.xml >> news.txt
+
+      - name: Send News to ClickUp
+        env:
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+          CLICKUP_LIST_ID: ${{ secrets.CLICKUP_LIST_ID }}
+        run: |
+          echo "Sending latest news to ClickUp..."
+          NEWS_CONTENT="$(head -n 10 news.txt | sed ':a;N;$!ba;s/\n/\\n/g')"  # Format top 10 headlines
+          curl -X POST "https://api.clickup.com/api/v2/list/$CLICKUP_LIST_ID/task" \
+          -H "Authorization: $CLICKUP_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "name": "Latest Industry News (Project Management, Healthcare, FinTech)",
+            "description": "'"$NEWS_CONTENT"'",
+            "status": "open"
+          }'
