@@ -24,7 +24,8 @@ jobs:
       - name: Convert XML to Readable Format
         run: |
           echo "Extracting headlines..."
-          apt-get update && apt-get install -y xmlstarlet
+          sudo apt-get update && sudo apt-get install -y xmlstarlet
+
           
           echo "**Project Management News**" > news.txt
           xmlstarlet sel -t -m "//item" -v "concat(title, ' - ', link)" -n pm_news.xml >> news.txt
