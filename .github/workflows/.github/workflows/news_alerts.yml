@@ -1,0 +1,40 @@
+name: Real-Time News Alerts for Project Management
+
+on:
+  schedule:
+    - cron: '*/1 * * * *'  # Runs every minute
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  fetch-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Fetch Latest News from Google News
+        run: |
+          echo "Fetching latest project management news..."
+          curl -s "https://news.google.com/rss/search?q=project+management+OR+workflow+automation+OR+team+collaboration+OR+remote+work+OR+productivity+software&hl=en-US&gl=US&ceid=US:en" > news.xml
+
+      - name: Convert XML to Readable Format
+        run: |
+          echo "Extracting headlines..."
+          apt-get update && apt-get install -y xmlstarlet
+          xmlstarlet sel -t -m "//item" -v "concat(title, ' - ', link)" -n news.xml > news.txt
+
+      - name: Send News to ClickUp
+        env:
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+          CLICKUP_LIST_ID: ${{ secrets.CLICKUP_LIST_ID }}
+        run: |
+          echo "Sending latest news to ClickUp..."
+          NEWS_CONTENT="$(head -n 5 news.txt | sed ':a;N;$!ba;s/\n/\\n/g')"  # Format top 5 headlines
+          curl -X POST "https://api.clickup.com/api/v2/list/$CLICKUP_LIST_ID/task" \
+          -H "Authorization: $CLICKUP_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "name": "Latest Project Management News",
+            "description": "'"$NEWS_CONTENT"'",
+            "status": "open"
+          }'
